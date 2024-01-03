@@ -8,10 +8,12 @@ use tokio::{
 
 #[cfg(windows)]
 use std::os::windows::prelude::*;
+#[cfg(unix)]
+use std::os::unix::prelude::*;
 
 #[derive(Parser)]
 struct Args {
-    #[clap(long, short, default_value = "localhost:55555")]
+    #[clap(long, short, default_value = "localhost:44444")]
     address: String,
     #[clap(subcommand)]
     cmd: Command,
@@ -169,7 +171,7 @@ async fn main() {
             con.write(msg).await;
             if let Some(msg) = con.read().await {
                 // println!("{:?}", msg);
-                copy_remote_file(&mut con, "demo.zip".into(), "test.bin".into()).await;
+                copy_remote_file(&mut con, "demo.bin".into(), "test.bin".into()).await;
             }
         }
     }
@@ -199,7 +201,17 @@ async fn server_loop(socket: TcpStream) {
 
                     let mut buf = Vec::with_capacity(len);
                     buf.resize(len, 0u8);
+                    #[cfg(windows)]
                     match f.seek_read(&mut buf, start as u64) {
+                        Ok(n) => NetMsg::ReadResponse {
+                            data: buf[..n].to_vec(),
+                        },
+                        Err(e) => NetMsg::Message {
+                            text: format!("error reading, {}", e),
+                        },
+                    }
+                    #[cfg(unix)]
+                    match f.read_at(&mut buf, start as u64) {
                         Ok(n) => NetMsg::ReadResponse {
                             data: buf[..n].to_vec(),
                         },
